@@ -45,3 +45,35 @@ jobs:
             shab-darwin-amd64
             shab-darwin-arm64
           generate_release_notes: true
+
+  android-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build android-arm64 (static)
+        run: |
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -static shab.c -o shab-android-arm64
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: shab-android-arm64
+          generate_release_notes: true
+
+  android-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-x86-64-linux-gnu
+      - name: Build android-x86_64 (static)
+        run: |
+          x86_64-linux-gnu-gcc -std=c11 -O2 -Wall -static shab.c -o shab-android-x86_64
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: shab-android-x86_64
+          generate_release_notes: true

@@ -93,7 +93,8 @@ static int parse_program(FILE *fp) {
         char *nl = strchr(p, '\n');
         if (nl) *nl = '\0';
 
-        char *tok = strtok(p, " \t");
+        char *saveptr;
+        char *tok = strtok_r(p, " \t", &saveptr);
         if (!tok) continue;
 
         Instr ins;
@@ -101,8 +102,8 @@ static int parse_program(FILE *fp) {
         ins.line = lineno;
 
         if (strcmp(tok, "const") == 0) {
-            char *rt = strtok(NULL, " \t");
-            char *it = strtok(NULL, " \t");
+            char *rt = strtok_r(NULL, " \t", &saveptr);
+            char *it = strtok_r(NULL, " \t", &saveptr);
             int r = parse_reg(rt);
             if (r < 0 || parse_int(it, &ins.imm) < 0) {
                 fprintf(stderr, "Line %d: expected const rN INTEGER\n", lineno);
@@ -110,8 +111,8 @@ static int parse_program(FILE *fp) {
             }
             ins.op = OP_CONST; ins.a = r;
         } else if (strcmp(tok, "mov") == 0) {
-            char *rd = strtok(NULL, " \t");
-            char *ra = strtok(NULL, " \t");
+            char *rd = strtok_r(NULL, " \t", &saveptr);
+            char *ra = strtok_r(NULL, " \t", &saveptr);
             int d = parse_reg(rd), a = parse_reg(ra);
             if (d < 0 || a < 0) {
                 fprintf(stderr, "Line %d: expected mov rD rA\n", lineno);
@@ -121,9 +122,9 @@ static int parse_program(FILE *fp) {
         } else if (strcmp(tok, "add") == 0 || strcmp(tok, "sub") == 0 ||
                    strcmp(tok, "mul") == 0 || strcmp(tok, "div") == 0 ||
                    strcmp(tok, "mod") == 0) {
-            char *rd = strtok(NULL, " \t");
-            char *ra = strtok(NULL, " \t");
-            char *rb = strtok(NULL, " \t");
+            char *rd = strtok_r(NULL, " \t", &saveptr);
+            char *ra = strtok_r(NULL, " \t", &saveptr);
+            char *rb = strtok_r(NULL, " \t", &saveptr);
             int d = parse_reg(rd), a = parse_reg(ra), b = parse_reg(rb);
             if (d < 0 || a < 0 || b < 0) {
                 fprintf(stderr, "Line %d: expected %s rD rA rB\n", lineno, tok);
@@ -136,8 +137,8 @@ static int parse_program(FILE *fp) {
             else ins.op = OP_MOD;
             ins.a = d; ins.b = a; ins.c = b;
         } else if (strcmp(tok, "neg") == 0) {
-            char *rd = strtok(NULL, " \t");
-            char *ra = strtok(NULL, " \t");
+            char *rd = strtok_r(NULL, " \t", &saveptr);
+            char *ra = strtok_r(NULL, " \t", &saveptr);
             int d = parse_reg(rd), a = parse_reg(ra);
             if (d < 0 || a < 0) {
                 fprintf(stderr, "Line %d: expected neg rD rA\n", lineno);
@@ -145,8 +146,8 @@ static int parse_program(FILE *fp) {
             }
             ins.op = OP_NEG; ins.a = d; ins.b = a;
         } else if (strcmp(tok, "cmp") == 0) {
-            char *ra = strtok(NULL, " \t");
-            char *rb = strtok(NULL, " \t");
+            char *ra = strtok_r(NULL, " \t", &saveptr);
+            char *rb = strtok_r(NULL, " \t", &saveptr);
             int a = parse_reg(ra), b = parse_reg(rb);
             if (a < 0 || b < 0) {
                 fprintf(stderr, "Line %d: expected cmp rA rB\n", lineno);
@@ -154,7 +155,7 @@ static int parse_program(FILE *fp) {
             }
             ins.op = OP_CMP; ins.a = a; ins.b = b;
         } else if (strcmp(tok, "print") == 0) {
-            char *rt = strtok(NULL, " \t");
+            char *rt = strtok_r(NULL, " \t", &saveptr);
             int r = parse_reg(rt);
             if (r < 0) {
                 fprintf(stderr, "Line %d: expected print rN\n", lineno);
@@ -162,7 +163,7 @@ static int parse_program(FILE *fp) {
             }
             ins.op = OP_PRINT; ins.a = r;
         } else if (strcmp(tok, "label") == 0) {
-            char *name = strtok(NULL, " \t");
+            char *name = strtok_r(NULL, " \t", &saveptr);
             if (!name) {
                 fprintf(stderr, "Line %d: expected label NAME\n", lineno);
                 return -1;
@@ -173,7 +174,7 @@ static int parse_program(FILE *fp) {
                    strcmp(tok, "jnz") == 0 || strcmp(tok, "jl") == 0 ||
                    strcmp(tok, "jg") == 0 || strcmp(tok, "jle") == 0 ||
                    strcmp(tok, "jge") == 0) {
-            char *name = strtok(NULL, " \t");
+            char *name = strtok_r(NULL, " \t", &saveptr);
             if (!name) {
                 fprintf(stderr, "Line %d: expected %s NAME\n", lineno, tok);
                 return -1;
@@ -187,8 +188,8 @@ static int parse_program(FILE *fp) {
             else ins.op = OP_JGE;
             snprintf(ins.label, sizeof(ins.label), "%s", name);
         } else if (strcmp(tok, "alloc") == 0) {
-            char *rt = strtok(NULL, " \t");
-            char *sz = strtok(NULL, " \t");
+            char *rt = strtok_r(NULL, " \t", &saveptr);
+            char *sz = strtok_r(NULL, " \t", &saveptr);
             int r = parse_reg(rt);
             if (r < 0 || parse_int(sz, &ins.imm) < 0 || ins.imm < 0) {
                 fprintf(stderr, "Line %d: expected alloc rN SIZE\n", lineno);
@@ -196,9 +197,9 @@ static int parse_program(FILE *fp) {
             }
             ins.op = OP_ALLOC; ins.a = r;
         } else if (strcmp(tok, "store") == 0) {
-            char *rb = strtok(NULL, " \t");
-            char *ro = strtok(NULL, " \t");
-            char *rv = strtok(NULL, " \t");
+            char *rb = strtok_r(NULL, " \t", &saveptr);
+            char *ro = strtok_r(NULL, " \t", &saveptr);
+            char *rv = strtok_r(NULL, " \t", &saveptr);
             int b = parse_reg(rb), o = parse_reg(ro), v = parse_reg(rv);
             if (b < 0 || o < 0 || v < 0) {
                 fprintf(stderr, "Line %d: expected store rBase rOff rVal\n", lineno);
@@ -206,9 +207,9 @@ static int parse_program(FILE *fp) {
             }
             ins.op = OP_STORE; ins.a = b; ins.b = o; ins.c = v;
         } else if (strcmp(tok, "load") == 0) {
-            char *rd = strtok(NULL, " \t");
-            char *rb = strtok(NULL, " \t");
-            char *ro = strtok(NULL, " \t");
+            char *rd = strtok_r(NULL, " \t", &saveptr);
+            char *rb = strtok_r(NULL, " \t", &saveptr);
+            char *ro = strtok_r(NULL, " \t", &saveptr);
             int d = parse_reg(rd), b = parse_reg(rb), o = parse_reg(ro);
             if (d < 0 || b < 0 || o < 0) {
                 fprintf(stderr, "Line %d: expected load rDest rBase rOff\n", lineno);

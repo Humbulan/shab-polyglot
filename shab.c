@@ -5,7 +5,9 @@
 #include <ctype.h>
 #include <stdint.h>
 #include <inttypes.h>
+#ifndef _WIN32
 #include <sys/utsname.h>
+#endif
 
 #define MAX_REG     256
 #define MAX_LABELS  512
@@ -320,11 +322,16 @@ static void print_banner(void) {
     printf("unknown");
 #endif
     printf("\n");
+#ifdef _WIN32
+    printf("Kernel system: Windows\n");
+    printf("Kernel machine: x86_64\n");
+#else
     struct utsname u;
     if (uname(&u) == 0) {
         printf("Kernel system: %s\n", u.sysname);
         printf("Kernel machine: %s\n", u.machine);
     }
+#endif
 }
 
 int main(int argc, char **argv) {

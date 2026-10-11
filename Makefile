@@ -1,21 +1,26 @@
-CC      ?= cc
-CFLAGS  ?= -std=c11 -Wall -Wextra -O2
-TARGET  := shab
-SRC     := shab.c
+CC ?= clang
+CFLAGS ?= -std=c11 -Wall -Wextra -O2
+CFLAGS_DEV = -std=c11 -Wall -Wextra -Wpedantic -O0 -g
+PREFIX ?= /usr/local
 
-.PHONY: all clean test
+TARGET = shab
+SRC = shab.c
+
+.PHONY: all dev test clean install
 
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(CC) $(CFLAGS) $(SRC) -o $(TARGET)
+	$(CC) $(CFLAGS) $< -o $@
 
-clean:
-	rm -f $(TARGET) *.o
+dev: $(SRC)
+	$(CC) $(CFLAGS_DEV) $< -o $(TARGET)
 
 test: $(TARGET)
-	@./$(TARGET) example.ir
-	@./$(TARGET) arith.ir
-	@./$(TARGET) countdown.ir
-	@./$(TARGET) memory.ir
-	@echo "ALL TESTS PASSED"
+	./test.sh
+
+install: $(TARGET)
+	install -m 0755 $(TARGET) $(PREFIX)/bin/$(TARGET)
+
+clean:
+	rm -f $(TARGET)

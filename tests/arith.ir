@@ -1,0 +1,13 @@
+const r0 40
+const r1 2
+const r2 3
+add r3 r0 r1
+sub r4 r3 r1
+mul r5 r4 r2
+div r6 r5 r1
+mod r7 r5 r2
+neg r8 r0
+print r6
+print r7
+print r8
+halt

@@ -1,0 +1,8 @@
+const r0 40
+const r1 2
+add r2 r0 r1
+const r3 3
+mul r4 r2 r3
+print r2
+print r4
+halt

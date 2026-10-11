@@ -1,0 +1,47 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  linux-and-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross-compilers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-mingw-w64-x86-64
+      - name: Build linux-amd64
+        run: gcc -std=c11 -O2 -Wall shab.c -o shab-linux-amd64
+      - name: Build linux-arm64
+        run: aarch64-linux-gnu-gcc -std=c11 -O2 -Wall shab.c -o shab-linux-arm64
+      - name: Build windows-amd64
+        run: x86_64-w64-mingw32-gcc -std=c11 -O2 -Wall shab.c -o shab-windows-amd64.exe
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            shab-linux-amd64
+            shab-linux-arm64
+            shab-windows-amd64.exe
+          generate_release_notes: true
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build darwin-amd64
+        run: clang -std=c11 -O2 -Wall shab.c -o shab-darwin-amd64
+      - name: Build darwin-arm64
+        run: clang -std=c11 -O2 -Wall -arch arm64 shab.c -o shab-darwin-arm64
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            shab-darwin-amd64
+            shab-darwin-arm64
+          generate_release_notes: true

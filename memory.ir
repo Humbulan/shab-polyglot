@@ -1,0 +1,12 @@
+alloc r0 10
+const r1 0
+const r2 100
+store r0 r1 r2
+const r3 5
+const r4 999
+store r0 r3 r4
+load r5 r0 r1
+load r6 r0 r3
+print r5
+print r6
+halt

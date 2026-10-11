@@ -1,0 +1,268 @@
+#define _POSIX_C_SOURCE 200809L
+
+#include <errno.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/utsname.h>
+
+#define REGISTER_COUNT 16
+#define MAX_INSTRUCTIONS 4096
+#define MAX_LINE 256
+#define DEFAULT_STEP_LIMIT 100000
+
+typedef enum {
+    OP_CONST, OP_MOV, OP_ADD, OP_SUB, OP_MUL, OP_PRINT, OP_HALT
+} Op;
+
+typedef struct {
+    Op op;
+    int dst, a, b;
+    uint64_t value;
+    unsigned long line;
+} Instruction;
+
+static Instruction program[MAX_INSTRUCTIONS];
+static uint64_t regs[REGISTER_COUNT];
+static size_t program_size = 0;
+
+static void architecture_info(void) {
+    struct utsname info;
+
+#if defined(__aarch64__)
+    puts("Compile-time architecture: ARM64 / AArch64");
+#elif defined(__arm__)
+    puts("Compile-time architecture: ARM 32-bit");
+#elif defined(__x86_64__)
+    puts("Compile-time architecture: x86-64");
+#elif defined(__riscv) && __riscv_xlen == 64
+    puts("Compile-time architecture: RISC-V 64-bit");
+#else
+    puts("Compile-time architecture: unknown");
+#endif
+
+    if (uname(&info) == 0) {
+        printf("Kernel system: %s\n", info.sysname);
+        printf("Kernel machine: %s\n", info.machine);
+    } else {
+        perror("uname");
+    }
+}
+
+static int parse_register(const char *s, int *out) {
+    char *end = NULL;
+    long n;
+
+    if (s == NULL || s[0] != 'r' || s[1] == '\0')
+        return 0;
+
+    errno = 0;
+    n = strtol(s + 1, &end, 10);
+
+    if (errno || *end != '\0' || n < 0 || n >= REGISTER_COUNT)
+        return 0;
+
+    *out = (int)n;
+    return 1;
+}
+
+static int parse_integer(const char *s, uint64_t *out) {
+    char *end = NULL;
+    long long n;
+
+    if (s == NULL || *s == '\0')
+        return 0;
+
+    errno = 0;
+    n = strtoll(s, &end, 0);
+
+    if (errno || *end != '\0')
+        return 0;
+
+    *out = (uint64_t)n;
+    return 1;
+}
+
+static int load_program(const char *path) {
+    FILE *file = fopen(path, "r");
+    char line[MAX_LINE];
+    unsigned long line_number = 0;
+
+    if (!file) {
+        perror(path);
+        return 0;
+    }
+
+    while (fgets(line, sizeof(line), file)) {
+        char *tokens[5] = {0};
+        char *save = NULL;
+        char *p;
+        int count = 0;
+        Instruction ins = {0};
+
+        line_number++;
+
+        if (!strchr(line, '\n') && !feof(file)) {
+            fprintf(stderr, "Line %lu: line too long\n", line_number);
+            fclose(file);
+            return 0;
+        }
+
+        p = strtok_r(line, " \t\r\n", &save);
+        while (p && count < 5) {
+            if (*p == '#')
+                break;
+            tokens[count++] = p;
+            p = strtok_r(NULL, " \t\r\n", &save);
+        }
+
+        if (count == 0)
+            continue;
+
+        if (p != NULL && *p != '#') {
+            fprintf(stderr, "Line %lu: too many arguments\n", line_number);
+            fclose(file);
+            return 0;
+        }
+
+        ins.line = line_number;
+
+        if (strcmp(tokens[0], "const") == 0 && count == 3) {
+            ins.op = OP_CONST;
+            if (!parse_register(tokens[1], &ins.dst) ||
+                !parse_integer(tokens[2], &ins.value)) {
+                fprintf(stderr, "Line %lu: expected const rN INTEGER\n", line_number);
+                fclose(file);
+                return 0;
+            }
+        } else if (strcmp(tokens[0], "mov") == 0 && count == 3) {
+            ins.op = OP_MOV;
+            if (!parse_register(tokens[1], &ins.dst) ||
+                !parse_register(tokens[2], &ins.a)) {
+                fprintf(stderr, "Line %lu: expected mov rN rN\n", line_number);
+                fclose(file);
+                return 0;
+            }
+        } else if ((strcmp(tokens[0], "add") == 0 ||
+                    strcmp(tokens[0], "sub") == 0 ||
+                    strcmp(tokens[0], "mul") == 0) && count == 4) {
+            ins.op = strcmp(tokens[0], "add") == 0 ? OP_ADD :
+                     strcmp(tokens[0], "sub") == 0 ? OP_SUB : OP_MUL;
+
+            if (!parse_register(tokens[1], &ins.dst) ||
+                !parse_register(tokens[2], &ins.a) ||
+                !parse_register(tokens[3], &ins.b)) {
+                fprintf(stderr, "Line %lu: expected %s rN rN rN\n",
+                        line_number, tokens[0]);
+                fclose(file);
+                return 0;
+            }
+        } else if (strcmp(tokens[0], "print") == 0 && count == 2) {
+            ins.op = OP_PRINT;
+            if (!parse_register(tokens[1], &ins.a)) {
+                fprintf(stderr, "Line %lu: expected print rN\n", line_number);
+                fclose(file);
+                return 0;
+            }
+        } else if (strcmp(tokens[0], "halt") == 0 && count == 1) {
+            ins.op = OP_HALT;
+        } else {
+            fprintf(stderr, "Line %lu: unknown instruction or wrong argument count\n",
+                    line_number);
+            fclose(file);
+            return 0;
+        }
+
+        if (program_size >= MAX_INSTRUCTIONS) {
+            fprintf(stderr, "Program exceeds %d instructions\n", MAX_INSTRUCTIONS);
+            fclose(file);
+            return 0;
+        }
+
+        program[program_size++] = ins;
+    }
+
+    if (ferror(file)) {
+        perror("Reading program");
+        fclose(file);
+        return 0;
+    }
+
+    fclose(file);
+
+    if (program_size == 0 || program[program_size - 1].op != OP_HALT) {
+        fprintf(stderr, "Error: program must end with halt\n");
+        return 0;
+    }
+
+    return 1;
+}
+
+static int execute_program(uint64_t step_limit) {
+    uint64_t steps = 0;
+
+    for (size_t pc = 0; pc < program_size; pc++) {
+        Instruction *i = &program[pc];
+
+        if (steps >= step_limit) {
+            fprintf(stderr, "Error: execution step limit reached\n");
+            return 0;
+        }
+        steps++;
+
+        switch (i->op) {
+            case OP_CONST:
+                regs[i->dst] = i->value;
+                break;
+            case OP_MOV:
+                regs[i->dst] = regs[i->a];
+                break;
+            case OP_ADD:
+                regs[i->dst] = regs[i->a] + regs[i->b];
+                break;
+            case OP_SUB:
+                regs[i->dst] = regs[i->a] - regs[i->b];
+                break;
+            case OP_MUL:
+                regs[i->dst] = regs[i->a] * regs[i->b];
+                break;
+            case OP_PRINT:
+                printf("r%d = %" PRIu64 "\n", i->a, regs[i->a]);
+                break;
+            case OP_HALT:
+                printf("Execution complete: %" PRIu64 " instruction(s)\n", steps);
+                return 1;
+        }
+    }
+
+    fprintf(stderr, "Error: program ended without halt\n");
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    uint64_t step_limit = DEFAULT_STEP_LIMIT;
+
+    if (argc < 2 || argc > 3) {
+        fprintf(stderr, "Usage: %s FILE.ir [STEP_LIMIT]\n", argv[0]);
+        return 2;
+    }
+
+    if (argc == 3) {
+        if (!parse_integer(argv[2], &step_limit) || step_limit == 0) {
+            fprintf(stderr, "Error: STEP_LIMIT must be a positive integer\n");
+            return 2;
+        }
+    }
+
+    architecture_info();
+
+    if (!load_program(argv[1]))
+        return 1;
+
+    if (!execute_program(step_limit))
+        return 1;
+
+    return 0;
+}

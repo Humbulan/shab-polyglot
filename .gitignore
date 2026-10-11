@@ -1,0 +1,9 @@
+shab
+*.o
+*.ir
+!example.ir
+!arith.ir
+!countdown.ir
+!memory.ir
+!divzero.ir
+!nolabel.ir

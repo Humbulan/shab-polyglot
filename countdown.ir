@@ -1,0 +1,9 @@
+const r0 5
+label loop
+print r0
+const r1 1
+sub r0 r0 r1
+cmp r0 r1
+jg loop
+print r0
+halt
